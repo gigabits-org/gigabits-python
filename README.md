@@ -8,4 +8,7 @@ The code uses MQTT to subscribe to commands and publish status.  MQTT is platfor
 
 The Python routines that control the sensor and actuator devices is copied from examples found on the NCD website when possible.  If there is no Python code for a sensor or actuator, we'll use the device's datasheet and relevant example code as inspriation.
 
+A routine named dummydevice.py shows how MQTT is implemented in Python.  We only need to substitute code that reads/writes real data for the synthetic data used in dummydevice.py.
+
+The Arduino equivalent of this repository is gigabits-arduino.  We will use it as a reference.
 
