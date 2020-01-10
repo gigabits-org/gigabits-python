@@ -11,3 +11,5 @@ The Python routines that control the sensor and actuator devices are copied from
 A routine named dummydevice.py shows how MQTT is implemented in Python.  We only need to substitute code that reads/writes real data for the synthetic data used in dummydevice.py.
 
 The Arduino equivalent of this repository is gigabits-arduino.  We will use it as a reference.  The example code in gigabits-arduino/examples/ESP32DemoApp is especially useful.
+
+Instructions detailing how to bring up the Raspberry Pi can be found in this reposatory's wiki.  When you initially open the wiki, it apears to be blank.  Click on the link to the setup instructions on the right.
