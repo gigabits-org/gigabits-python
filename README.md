@@ -6,7 +6,7 @@ Commands from the server may arrive at any time.  They should be executed when t
 
 The code uses MQTT to subscribe to commands and publish status.  MQTT is platform-independent.  This lets us compose MQTT messages in Python on a control processor and read them in Go on a server.
 
-The Python routines that control the sensor and actuator devices is copied from examples found on the NCD website when possible.  If there is no Python code for a sensor or actuator, we'll use the device's datasheet and relevant example code as inspiration.
+The Python routines that control the sensor and actuator devices are copied from examples found on the NCD website when possible.  If there is no Python code for a sensor or actuator, we'll use the device's datasheet and relevant example code as inspiration.
 
 A routine named dummydevice.py shows how MQTT is implemented in Python.  We only need to substitute code that reads/writes real data for the synthetic data used in dummydevice.py.
 
