@@ -9,6 +9,7 @@ import random
 import json
 import time
 import os
+from decimal import *
 import smbus
 from dotenv import load_dotenv
 load_dotenv()
@@ -94,8 +95,8 @@ def sendHCPAData(sensorVals):
     print("Temperature (deg C): {}".format(cTemp))
     print("Temperature (deg F): {}".format(fTemp))
     # store the humidity and temperature into sensorVals dict
-    sensorVals[HUMIDITY_SENSOR_IDX] = humidity
-    sensorVals[TEMPERATURE_SENSOR_IDX] = fTemp
+    sensorVals[HUMIDITY_SENSOR_IDX] = round(humidity, 5)
+    sensorVals[TEMPERATURE_SENSOR_IDX] = round(fTemp, 5)
 
 # Setup the pressure sensor.
 # Note that the compensation variables A0, B1, B2 and C12 are effectively
@@ -172,7 +173,7 @@ def sendMPLData(sensorVals):
     
     print("Pressure: {}".format(pressure))
     # store the pressure into sensorVals dict
-    sensorVals[PRESSURE_SENSOR_IDX] = pressure;
+    sensorVals[PRESSURE_SENSOR_IDX] = round(pressure, 5);
 
 # There's nothing for the setup routine to set up, so proceed to sending a 
 # sample back to the server.
@@ -197,7 +198,7 @@ def sendGasData(sensorVals):
     
     # store the gas measurement into sensorVals dict
     print("Gas: {}".format(raw_adc))
-    sensorVals[GAS_SENSOR_IDX] = raw_adc
+    sensorVals[GAS_SENSOR_IDX] = round(raw_adc, 5)
     
 def setupSoilData(sensorVals):
 
@@ -219,7 +220,7 @@ def sendSoilData(sensorVals):
     
     # store the soil measurement into sensorVals dict
     print("Soil: {}".format(raw_adc))
-    sensorVals[SOIL_SENSOR_IDX] = raw_adc
+    sensorVals[SOIL_SENSOR_IDX] = round(raw_adc, 5)
 
 
 # Set up the proximity detector.
@@ -260,7 +261,7 @@ def sendProximityData(sensorVals):
 
     # store the proximity measurement into sensorVals dict
     print("Proximity: {}".format(proximity))
-    sensorVals[PROXY_SENSOR_IDX] = proximity
+    sensorVals[PROXY_SENSOR_IDX] = round(proximity, 5)
 
 
 # Reference: https://github.com/ControlEverythingCommunity/TSL2561/blob/master/Python/TSL2561.py
@@ -292,8 +293,8 @@ def sendTSLData(sensorVals):
     # post the current Visible and IR lux values
     print("Visible Light: {}".format(ch0 - ch1))
     print("Infrared Light: {}".format(ch1))
-    sensorVals[VISIBLE_LIGHT_SENSOR_IDX] = ch0 - ch1
-    sensorVals[INFRARED_LIGHT_SENSOR_IDX] = ch1
+    sensorVals[VISIBLE_LIGHT_SENSOR_IDX] = round((ch0 - ch1), 5)
+    sensorVals[INFRARED_LIGHT_SENSOR_IDX] = round(ch1, 5)
 
 # declare the canonical Raspberry Pi routines.
 
@@ -335,7 +336,7 @@ def sendStatus(sensorVals):
     # sendTSLData(sensorVals)
 
     # convert the sensorVals dictionary to a JSON Object
-    data = json.dumps(sensorVals)
+    data = json.dumps(sensorVals, separators=(',', ':'))
     
     # DEBUG
     print(sensorVals)
@@ -364,6 +365,9 @@ client.on_connect = on_connect
 client.on_disconnect = on_disconnect
 client.on_message = on_message
 client.on_publish = on_publish
+
+# set up the numeric precision
+getcontext().prec = 5
 
 print("Connecting to {}".format(MQTT_BROKER))
 print("Using devkey {}".format(MQTT_DEVKEY))
