@@ -137,7 +137,7 @@ def setupMPL():
 def sendMPLData(sensorVals):
     print("Sending pressure data ...")
   
-    print("in sendMPLData, A0: %f, B1: %f, B2: %f, C12: %f" %(A0, B1, B2, C12))
+    # print("in sendMPLData, A0: %f, B1: %f, B2: %f, C12: %f" %(A0, B1, B2, C12))
    
     # MPL115A2 address, 0x60(96)
     # Send Pressure measurement command, 0x12(18)
@@ -153,20 +153,11 @@ def sendMPLData(sensorVals):
     
     # Convert the data to 10-bits  Note that we calculate the temperature,
     # then discard it after using it for compensation
-    print("data[0]: %d, data[1]: %d, data[2]: %d, data[3]: %d" %(data[0], 
-        data[1], data[2], data[3]))
     pres = ((data[0] * 256) + (data[1] & 0xC0)) / 64
     temp = ((data[2] * 256) + (data[3] & 0xC0)) / 64
     
-    print("pres: %d, temp: %d" %(pres, temp))
-    
-    print("A0: %d, B1: %d, C12: %d, temp: %d, pres: %f, B2: %f, temp: %f" %(A0, 
-    B1, C12, temp, pres, B2, temp))
-    
     # Calculate pressure compensation
     presComp = A0 + (B1 + C12 * temp) * pres + B2 * temp
-    
-    print("presComp: %f" %(presComp))
     
     # Convert the data
     pressure = (65.0 / 1023.0) * presComp + 50
@@ -296,19 +287,57 @@ def sendTSLData(sensorVals):
     sensorVals[VISIBLE_LIGHT_SENSOR_IDX] = round((ch0 - ch1), 5)
     sensorVals[INFRARED_LIGHT_SENSOR_IDX] = round(ch1, 5)
 
-# declare the canonical Raspberry Pi routines.
+# Declare the canonical Raspberry Pi routines.  This requires some explanation.  
+# There are two cases when we want to initiate an action and wait for a 
+# response - connecting to the MQTT broker and waiting for sensor data.
+# When we're waiting for a connection, we have to monitor feedback
+# from the code that's trying to make the connection.  We do that by
+# providing two callback routines, on_connect and on_disconnect.  When
+# on_connect is called, we check the return code passed in to see if
+# we're connected.  If so, we proceed.  If not, we print the error and
+# quit.  Handling on_disconnect is similar, execpt that we never
+# proceed from on_disconnect.
 
-def on_connect(client, data, flags, result):
-    print('client connected result: '+connack_string(result))
+# Here's where things get a bit tricky.  The code waits for on_connect
+# or on_disconnect to be called.  However, these routines are only called
+# when we've officially declared that we're in a loop with 
+# client.startLoop.  And, when we're
+# waiting for a connection, we want to exit the loop as soon as
+# on_connect or on_disconnect is called.  When waiting for sensor data,
+# we always want to keep going, even after errors.
+
+# We'll have four control variables.
+#   * rc: passed to on_connect and on_disconnect to tell them what happened.
+#   * client.connectedFlag: set when the connection to the MQTT broker
+#     has been made.
+#   * client.keepLooping: set when we're supposed to keep looking
+#     for data
+#   * client.oneAndDone: Set when we're supposed to exit the loop
+#     after the first call to on_connect or on_disconnect.  That's
+#     used when connecting to the broker.
+
+def on_connect(client, data, flags, rc):
+    if rc==0:
+        client.connectedFlag = True
+        print('client connected properly, rc: '+mqtt.connack_string(rc))
+    else:
+        client.connectedFlag = False
+        print('client connection ERROR: '+mqtt.connack_string(rc))
+    if client.oneAndDone:
+        client.keepLooping = False
 
 def on_disconnect(client, data, rc):
-    if rc != 0:
-        print('client disconnected unexpectedly')
+    if rc==0:
+        print('client disconnected properly, rc: '+mqtt.connack_string(rc))
+    else:
+        print('client disconnection ERROR: '+mqtt.connack_string(rc))
+    if client.oneAndDone:
+        client.keepLooping = False
 
 def on_publish(client, data, mid):
     print('published ', str(mid))
-    print("---------------------------  Data was published ------------------")
-
+    print()
+    
 def on_message(client, userdata, msg):
     data = msg.payload.decode()
     print("Message received: "+ data)
@@ -339,28 +368,24 @@ def sendStatus(sensorVals):
     data = json.dumps(sensorVals, separators=(',', ':'))
     
     # DEBUG
-    print(sensorVals)
-    print("device/%s/records"%(MQTT_DEVKEY))
-    print(data)
+    #print(sensorVals)
+    #print("device/%s/records"%(MQTT_DEVKEY))
+    #print(data)
 
     # publish that data.
-    # Calling reconnect every time want to publish a message seem pretty
-    # kludgy, but it seems to work.  Maybe?
-    client.reconnect()
     mmi = client.publish("device/%s/records"%(MQTT_DEVKEY), payload=data, 
-    qos=2, retain=False)
+                        qos=0, retain=False)
     print("Result of attempting to publish sensorVals: %s"%(mqtt.error_string(mmi.rc)))
-    if mmi.is_published :
-        print("Data was published")
-    else :
-        print("Data was not published")
     
 # Here's where execution starts.  Get an MQTT client.  We'll use it to
 # send sensor data and receive commands.
-# This is an insecure system.  
-
-client = mqtt.Client(client_id="Gigibits")
-client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
+# This is an insecure system.
+# We obtain the devKey and secret strings from your target project on
+# app.gigibits.io. devkey is used as the new mqtt clientID and
+# username.  Secret turns into password. 
+  
+client = mqtt.Client(client_id=MQTT_DEVKEY)
+client.username_pw_set(username=MQTT_DEVKEY,password=MQTT_PASSWORD)
 client.on_connect = on_connect
 client.on_disconnect = on_disconnect
 client.on_message = on_message
@@ -369,19 +394,41 @@ client.on_publish = on_publish
 # set up the numeric precision
 getcontext().prec = 5
 
-print("Connecting to {}".format(MQTT_BROKER))
-print("Using devkey {}".format(MQTT_DEVKEY))
+# This is where we had the call to "breakpoint".  That lets us
+# set breakpoints before the fun stuff happens.
 
-breakpoint()
+# Establish a connection to the broker.  keepLooping tells us
+# whether to continue to look for either a connection or sensor data.
+# connectedFlag tells us when we have a connection to the MQTT broker.
+# oneAndDone tells us whether we're looking for a connection or sensor
+# data.  Looking for a connection and something appears in on_connect
+# or on_disconnect => exit loop.  Looking for sensor data => always
+# look for more.
+client.keepLooping = True
+client.connectedFlag = False
+client.oneAndDone = True
+
+# try to connect to broker by isssuing the connect command,
+# then looping to wait for a reply.
 client.connect(MQTT_BROKER, MQTT_PORT)
-print("returned from connect")
+client.loop_start()
+while client.keepLooping == True:
+    print("Waiting to connect to broker %s"%(MQTT_BROKER))
+    print("Waiting to connect to port %s"%(MQTT_PORT))
+    time.sleep(1)
+client.loop_stop()
+# are we connected?  If not, something's wrong and a message
+# should have been printed in on_connect or on_disconnect.
+if (client.connectedFlag == False):
+    exit(1)
+
+# we're connected to the mqtt broker!  subscribe to commands from
+# the server.
 client.subscribe('server/%s/command'%(MQTT_DEVKEY), 1)
-print("returned from subscribe")
 
 # setup all the sensors and actuators.
 # Get the bus that we'll use to read sensor data
 bus = smbus.SMBus(1)
-print("returned from smbus")
 
 setupMPL()
 #setupGas()
@@ -389,15 +436,19 @@ setupMPL()
 #setupProximity()
 #setupTSL()
 
-print("Returned from setup")
-
+client.keepLooping = True
+client.oneAndDone = False
 # Loop through all the sensors.
 client.loop_start()
 
 while True:
     sendStatus(sensorVals)
+    print()
     # clear sensorVals so we won't get confused next time
     sensorVals = {}
 
     time.sleep(10)
+    
+client.loop_stop()
+
     
