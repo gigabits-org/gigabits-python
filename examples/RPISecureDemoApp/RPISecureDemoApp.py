@@ -1,7 +1,7 @@
 #!/usr/bin/env python3.7
 
 # This file contains a Python implementation of the Arduino sketch 
-# ESP32DemoApp.ino.  That sketch exercises a bunch of sensors and communicates with 
+# ESP32SecureDemoApp.ino.  That sketch exercises a bunch of sensors and communicates with 
 # the main server.
 
 import paho.mqtt.client as mqtt
@@ -10,6 +10,7 @@ import math
 import json
 import time
 import os
+from pathlib import Path
 from decimal import *
 import smbus
 from dotenv import load_dotenv
@@ -18,6 +19,7 @@ import board
 import busio
 import digitalio
 import adafruit_ssd1306
+
 
 # Here are some values that we don't want to bake into the source code.  
 # They're held in environment variables instead.
@@ -95,6 +97,7 @@ def setupDisplay():
 
     # return the display so other code and use it.
     return display
+
 
 # This is the temperature and humidity sensor that's in the training board.
 # Reference https://github.com/ControlEverythingCommunity/HCPA-5V-U3/blob/master/Python/HCPA_5V_U3.py
@@ -249,7 +252,7 @@ def sendSoilData(sensorVals):
 
 # Set up the proximity detector.
 def setupProximity():
-    print("Sending Proximity")
+    print("Setup Proximity")
     
     # Select the ENABLE register, 0x00(0), with command register 0x80(128)
     #       0x0D(14)    Power on, Wait enabled, Proximity enabled
@@ -280,7 +283,7 @@ def sendProximityData(sensorVals):
     # Proximity lsb, Proximity msb
     data = bus.read_i2c_block_data(PROXY_Addr, 0x18 | 0x80, 2)
 
-    # Convert the dataAccording to 
+    # Convert the data.  According to 
     # https://www.renesas.com/us/en/www/doc/application-note/an1436.pdf,
     # The signal we get is linear with the captured  infrared signal
     # intensity, or inversely proportional to the square of the distance.
@@ -292,10 +295,10 @@ def sendProximityData(sensorVals):
     proximity = data[1] * 256 + data[0]
     distance = 1000.0 * math.sqrt(1.0 / float(proximity))
 
-
     # store the proximity measurement into sensorVals dict
     print("Proximity: {}".format(proximity))
-    sensorVals[PROXY_SENSOR_IDX] = round(proximity, 5)
+    print("relative distance: {}".format(distance))
+    sensorVals[PROXY_SENSOR_IDX] = round(distance, 5)
 
 
 # Reference: https://github.com/ControlEverythingCommunity/TSL2561/blob/master/Python/TSL2561.py
@@ -385,6 +388,7 @@ def on_publish(client, data, mid):
     print('published ', str(mid))
     print()
     
+
 def on_message(client, userdata, msg):
     data = msg.payload.decode()
     print("Message received: "+ data)
@@ -400,7 +404,8 @@ def on_message(client, userdata, msg):
         client.display.fill(0)
         client.display.displayIsOn = False
     client.display.show()
-
+    
+    # Echo the command so the server will know that we got it.
     resp = {
         str(command["si"]): str(command["c"])
     }
@@ -441,6 +446,15 @@ client.on_connect = on_connect
 client.on_disconnect = on_disconnect
 client.on_message = on_message
 client.on_publish = on_publish
+
+# Get address of file that contains the certificate that we need
+# to support TLS/SSL
+certDir = Path(__file__).parent.absolute().parents[1]
+print(certDir)
+
+certName = os.path.join(certDir, "amazon_root_ca.pem")
+# try using the cert to enable TLS/SS>
+client.tls_set(certName)
 
 # set up the numeric precision
 getcontext().prec = 5
