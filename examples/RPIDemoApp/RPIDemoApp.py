@@ -295,6 +295,7 @@ def sendProximityData(sensorVals):
 
     # store the proximity measurement into sensorVals dict
     print("Proximity: {}".format(proximity))
+    print("Distance: {}".format(distance))
     sensorVals[PROXY_SENSOR_IDX] = round(proximity, 5)
 
 

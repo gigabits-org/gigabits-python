@@ -285,7 +285,7 @@ def sendProximityData(sensorVals):
 
     # Convert the data.  According to 
     # https://www.renesas.com/us/en/www/doc/application-note/an1436.pdf,
-    # The signal we get is linear with the captured  infrared signal
+    # The signal we get is linear with the captured infrared signal
     # intensity, or inversely proportional to the square of the distance.
     # So, let's return both the number emitted by the Proxy sensor
     # and the actual distance (mostly, kinda, sort of).
@@ -298,7 +298,7 @@ def sendProximityData(sensorVals):
     # store the proximity measurement into sensorVals dict
     print("Proximity: {}".format(proximity))
     print("relative distance: {}".format(distance))
-    sensorVals[PROXY_SENSOR_IDX] = round(distance, 5)
+    sensorVals[PROXY_SENSOR_IDX] = round(proximity, 5)
 
 
 # Reference: https://github.com/ControlEverythingCommunity/TSL2561/blob/master/Python/TSL2561.py
